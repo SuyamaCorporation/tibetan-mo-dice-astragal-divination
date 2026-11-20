@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>チベット・モ占い</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-amber-950 to-red-950 min-h-screen text-white">
+<div class="max-w-2xl mx-auto p-4">
+  <div class="text-center mb-6">
+    <div class="text-5xl mb-2">🎲</div>
+    <h1 class="text-2xl font-bold text-amber-300">チベット・モ占い（骨サイコロ占術）</h1>
+    <p class="text-amber-200 text-sm mt-1">古代チベットの伝統的な骨サイコロ占術 Mo（མོ）に基づく神託</p>
+  </div>
+
+  <!-- 質問入力 -->
+  <div class="bg-amber-900 bg-opacity-50 rounded-xl p-4 mb-5">
+    <label for="question" class="text-sm font-semibold text-amber-300 block mb-2">質問を入力してください</label>
+    <textarea id="question" rows="2" placeholder="例: この取り組みは良い結果をもたらしますか？"
+      aria-label="占いの質問"
+      class="w-full bg-amber-950 border border-amber-700 rounded-lg px-3 py-2 text-sm text-amber-100 placeholder-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+    <button onclick="castDice()" aria-label="占う"
+      class="mt-3 w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl text-lg transition">
+      🎲 占う
+    </button>
+  </div>
+
+  <!-- サイコロ表示 -->
+  <div id="dice-display" class="hidden bg-amber-900 bg-opacity-40 rounded-xl p-5 mb-5 text-center">
+    <div class="text-sm text-amber-400 mb-3">出目</div>
+    <div class="flex justify-center gap-6 mb-3" id="dice-faces"></div>
+    <div class="text-amber-300 text-lg font-semibold" id="dice-sum-label"></div>
+  </div>
+
+  <!-- 神託テキスト -->
+  <div id="oracle-display" class="hidden bg-gradient-to-b from-red-900 to-amber-900 border border-amber-600 rounded-xl p-5 mb-5">
+    <div class="text-xs text-amber-400 mb-2 uppercase tracking-wider">神託</div>
+    <div class="text-lg font-bold text-amber-200 mb-3" id="oracle-title"></div>
+    <div class="text-amber-100 leading-relaxed" id="oracle-text"></div>
+    <div class="mt-3 text-xs text-amber-500" id="oracle-category"></div>
+  </div>
+
+  <!-- 履歴 -->
+  <div class="bg-amber-950 bg-opacity-50 rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-amber-400">占い履歴</h2>
+      <button onclick="clearHistory()" aria-label="履歴を消去" class="text-xs text-amber-700 hover:text-amber-500">消去</button>
+    </div>
+    <div id="history-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+  </div>
+</div>
+
+<script>
+// チベット・モ占い 36種の神託テキスト（合計3〜18の出目に対応）
+// 実際のモ占いは2d6（各1-6）で出目の組み合わせを使用するが、ここでは3d6の合計で36エントリを簡略化
+const ORACLES = {
+  3:  { title: '白い光の道', category: '大吉', text: '三宝（仏・法・僧）の加護が十全に満ちています。あなたの意図は清浄であり、行動を起こす今が最良の時です。障害は霧のように晴れ去るでしょう。護法神が前途を照らしています。' },
+  4:  { title: '金剛の安定', category: '吉', text: '大地の如く揺るぎない基盤の上に立っています。今の取り組みは着実に根付き、時間をかけて豊かな実を結ぶでしょう。焦らず、地道な努力を続けることが肝要です。' },
+  5:  { title: '聖なる火炎', category: '吉', text: '智慧の炎が内なる闇を焼き払います。障害に見えるものも、実は成長の糧となっています。師や友人からの助言に耳を傾けると吉。正しい行為が福徳を招きます。' },
+  6:  { title: '蓮の花開く', category: '吉', text: '泥の中から清浄な花が開くように、困難な状況の中にこそ可能性が潜んでいます。純粋な意図を保ち続けることで、予想以上の開花があるでしょう。忍耐は美徳です。' },
+  7:  { title: '緑のターラーの加護', category: '中吉', text: 'ターラー菩薩の慈悲が降り注いでいます。慈悲の心をもって行動すれば、周囲の協力を得られます。しかし過度な期待は禁物。穏やかな前進が最善の道です。' },
+  8:  { title: '宝の壺', category: '中吉', text: '隠れた宝が存在します。急いでも見つかりません。静かに探すことで、思いがけない恵みに出会えます。欲望を手放し、感謝の心を持つ時に宝は現れます。' },
+  9:  { title: '山の風', category: '中吉', text: '風は方向を変えながらも、やがて目的地へと吹き続けます。現状は変化の途中であり、今すぐの判断は時期尚早かもしれません。柔軟性を保ちながら待機する時です。' },
+  10: { title: '交差する道', category: '中平', text: '複数の可能性が交差する地点にいます。選択に迷うことは自然です。信頼できる知恵者に相談し、直感と理性の両方を使って判断することが求められています。' },
+  11: { title: '霧の中の灯台', category: '中平', text: '現在の状況は霧に包まれたように不明瞭ですが、遠くに光があります。今は決断より観察の時。情報を集め、状況が明確になるまで主要な行動は控えましょう。' },
+  12: { title: '揺れる天秤', category: '中平', text: '均衡が試されています。利益と損失、前進と後退の間で揺れています。公平さを保ち、偏りのない見方をすることで、やがてバランスが取れた結果が生まれます。' },
+  13: { title: '嵐の前の静寂', category: '中平', text: '表面上は穏やかに見えますが、変化のエネルギーが蓄積されています。準備を怠らず、来るべき変化に対して柔軟に対応できる態勢を整えておきましょう。' },
+  14: { title: '石の重さ', category: '要注意', text: '行動に重い荷を背負っています。今は立ち止まり、不要な重荷を下ろす時かもしれません。執着を手放すことで、前に進める道が開けます。慎重な行動が必要です。' },
+  15: { title: '赤い煙の警告', category: '要注意', text: '見えない障害が潜んでいます。表面上は問題がないように見えても、裏に複雑な要因があるかもしれません。今は大きな決断を避け、細部の確認に時間をかけましょう。' },
+  16: { title: '逆流する川', category: '要注意', text: '自然の流れに逆らっています。努力が実を結びにくい時期です。方向性を見直し、より自然な道を探すことが賢明です。強引な前進は疲弊を招くだけです。' },
+  17: { title: '夜の闇の彷徨', category: '困難', text: '現在の道には多くの困難が潜んでいます。しかし闇は永遠ではありません。内なる光（智慧）を頼りに、一歩一歩慎重に進めば、夜明けは必ずやってきます。' },
+  18: { title: '大いなる試練', category: '大困難・転機', text: '最大の困難に直面していますが、これは同時に最大の成長の機会でもあります。過去のカルマを清算する時が来ました。祈りと懺悔、そして誠実な行動で道を切り開きましょう。三宝に帰依し、師の教えを頼りにしてください。' },
+};
+
+let history = [];
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('tibetan-mo');
+    if (s) { const d = JSON.parse(s); history = d.history || []; }
+  } catch(e) {}
+}
+function saveState() {
+  localStorage.setItem('tibetan-mo', JSON.stringify({ history }));
+}
+
+function rollDie() { return Math.floor(Math.random() * 6) + 1; }
+
+function diceEmoji(n) {
+  return ['⚀','⚁','⚂','⚃','⚄','⚅'][n - 1];
+}
+
+function castDice() {
+  const q = document.getElementById('question').value.trim();
+  const d1 = rollDie(), d2 = rollDie(), d3 = rollDie();
+  const sum = d1 + d2 + d3;
+  const oracle = ORACLES[sum];
+
+  // Show dice
+  document.getElementById('dice-display').classList.remove('hidden');
+  const facesEl = document.getElementById('dice-faces');
+  facesEl.innerHTML = '';
+  [d1, d2, d3].forEach(d => {
+    const span = document.createElement('span');
+    span.className = 'text-5xl';
+    span.textContent = diceEmoji(d);
+    facesEl.appendChild(span);
+  });
+  document.getElementById('dice-sum-label').textContent = `出目合計: ${sum}`;
+
+  // Show oracle
+  document.getElementById('oracle-display').classList.remove('hidden');
+  document.getElementById('oracle-title').textContent = oracle.title;
+  document.getElementById('oracle-text').textContent = oracle.text;
+  const catColor = oracle.category.includes('大吉') ? 'text-yellow-400' :
+    oracle.category.includes('吉') ? 'text-green-400' :
+    oracle.category.includes('困難') ? 'text-red-400' :
+    oracle.category.includes('注意') ? 'text-orange-400' : 'text-amber-400';
+  const catEl = document.getElementById('oracle-category');
+  catEl.textContent = '判定: ' + oracle.category;
+  catEl.className = 'mt-3 text-sm font-semibold ' + catColor;
+
+  // Add to history
+  if (q || history.length < 20) {
+    history.unshift({
+      date: new Date().toLocaleString('ja-JP'),
+      question: q || '（質問なし）',
+      dice: [d1, d2, d3],
+      sum,
+      title: oracle.title,
+      category: oracle.category,
+    });
+    if (history.length > 20) history.pop();
+    saveState();
+    renderHistory();
+  }
+}
+
+function renderHistory() {
+  const c = document.getElementById('history-list');
+  c.innerHTML = '';
+  if (history.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'text-amber-700 text-sm';
+    p.textContent = '履歴なし';
+    c.appendChild(p);
+    return;
+  }
+  history.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'bg-amber-900 bg-opacity-40 rounded-lg p-3 text-xs';
+    const topLine = document.createElement('div');
+    topLine.className = 'flex justify-between text-amber-500 mb-1';
+    const dateSpan = document.createElement('span');
+    dateSpan.textContent = h.date;
+    const catSpan = document.createElement('span');
+    catSpan.textContent = h.category;
+    topLine.appendChild(dateSpan);
+    topLine.appendChild(catSpan);
+    const qLine = document.createElement('div');
+    qLine.className = 'text-amber-200 mb-1';
+    qLine.textContent = h.question.length > 40 ? h.question.slice(0, 40) + '...' : h.question;
+    const dLine = document.createElement('div');
+    dLine.className = 'text-amber-400';
+    dLine.textContent = h.dice.map(d => diceEmoji(d)).join(' ') + ` = ${h.sum} 【${h.title}】`;
+    row.appendChild(topLine);
+    row.appendChild(qLine);
+    row.appendChild(dLine);
+    c.appendChild(row);
+  });
+}
+
+function clearHistory() {
+  if (!confirm('履歴をすべて消去しますか？')) return;
+  history = [];
+  saveState();
+  renderHistory();
+}
+
+loadState();
+renderHistory();
+</script>
+</body>
+</html>
